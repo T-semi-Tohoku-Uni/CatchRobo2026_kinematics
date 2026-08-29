@@ -53,10 +53,10 @@
 robot_kinematics::robot_kinematics(){
 
 
-    link_len[0] = 550;
-    link_len[1] = 460;
-    link_len[2] =  43;
-    link_len[3] =  20;
+    link_len[0] = 480;
+    link_len[1] = 480;
+    link_len[2] =  40;
+    link_len[3] =  0;
 
 /*
     joint_angle_now[0] = 0;
