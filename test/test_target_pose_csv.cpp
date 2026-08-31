@@ -116,13 +116,16 @@ int main(int argc, char **argv)
                     reconstructed_pose[PHI],
                     static_cast<float>(target.theta_radians)))));
 
-            const std::array<double, 4> independent_joint_angles = {{
+            const catchrobo_kinematics::JointAngles absolute_joint_angles = {{
                 joint_angles[0], joint_angles[1],
                 joint_angles[2], joint_angles[3]
             }};
+            const catchrobo_kinematics::JointAngles relative_joint_angles =
+                catchrobo_kinematics::absolute_to_relative_joint_angles(
+                    absolute_joint_angles);
             const catchrobo_kinematics::TransformChain transforms =
                 catchrobo_kinematics::make_transform_chain(
-                    independent_joint_angles);
+                    relative_joint_angles);
             const catchrobo_kinematics::TransformMatrix expected_orientation =
                 catchrobo_kinematics::rotation_z(target.theta_radians);
             for (int row = 0; row < 3; ++row) {

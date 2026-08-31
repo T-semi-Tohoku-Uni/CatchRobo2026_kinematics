@@ -42,12 +42,23 @@ int main()
         kinematics.forward_kinematics(flange_pose, input_joint_angles);
         kinematics.inverse_kinematics(flange_pose, solved_joint_angles);
 
-        const std::array<double, 4> independent = {{
+        const catchrobo_kinematics::JointAngles absolute = {{
             input_joint_angles[0], input_joint_angles[1],
             input_joint_angles[2], input_joint_angles[3]
         }};
+        const catchrobo_kinematics::JointAngles relative =
+            catchrobo_kinematics::absolute_to_relative_joint_angles(absolute);
+        const catchrobo_kinematics::JointAngles round_trip_absolute =
+            catchrobo_kinematics::relative_to_absolute_joint_angles(relative);
+        const bool conversion_matches_definition =
+            nearly_equal(
+                static_cast<float>(relative[1]),
+                input_joint_angles[1], 1.0e-6F) &&
+            nearly_equal(
+                static_cast<float>(relative[2]),
+                input_joint_angles[2] - input_joint_angles[1], 1.0e-6F);
         const catchrobo_kinematics::TransformChain transforms =
-            catchrobo_kinematics::make_transform_chain(independent);
+            catchrobo_kinematics::make_transform_chain(relative);
 
         const bool matrix_matches_pose =
             nearly_equal(flange_pose[X], transforms[5][3], 1.0e-3F) &&
@@ -77,16 +88,26 @@ int main()
             std::fabs(wrapped_difference(
                 solved_joint_angles[3], input_joint_angles[3])) < 1.0e-4F;
 
+        bool angle_conversion_round_trip = true;
+        for (std::size_t joint = 0; joint < absolute.size(); ++joint) {
+            angle_conversion_round_trip = angle_conversion_round_trip &&
+                nearly_equal(
+                    static_cast<float>(round_trip_absolute[joint]),
+                    input_joint_angles[joint], 1.0e-6F);
+        }
+
         const double theta2_prime =
             catchrobo_kinematics::dependent_theta2_prime(
-                input_joint_angles[1], input_joint_angles[2]);
+                relative[1], relative[2]);
         const bool constraint_holds = std::fabs(
-            theta2_prime + input_joint_angles[1] +
-            input_joint_angles[2] + catchrobo_kinematics::kPi / 2.0) <
+            theta2_prime + relative[1] + relative[2] +
+            catchrobo_kinematics::kPi / 2.0) <
             1.0e-12;
 
         if (!matrix_matches_pose || !orientation_matches_task_yaw ||
-            !ik_matches_input || !constraint_holds) {
+            !ik_matches_input || !conversion_matches_definition ||
+            !angle_conversion_round_trip ||
+            !constraint_holds) {
             std::cerr << "Consistency test failed for case " << index << '\n';
             passed = false;
         }

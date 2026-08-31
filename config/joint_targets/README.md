@@ -9,8 +9,10 @@ implementation.
 - `shooting_joint_targets_red.csv`
 - `shooting_joint_targets_blue.csv`
 
-The source pose columns are kept in each row for traceability. The generated
-joint columns are expressed in radians:
+The source pose columns are kept in each row for traceability. All generated
+joint columns are expressed in radians. `Theta2_rad` and `Theta3_rad` are
+absolute angles measured in the field frame, matching the public IK/FK
+interface. `Theta2Prime_rad` is the dependent joint's relative rotation:
 
 - `Theta1_rad`
 - `Theta2_rad`
@@ -18,10 +20,12 @@ joint columns are expressed in radians:
 - `Theta2Prime_rad`
 - `Theta4_rad`
 
-`Theta2Prime_rad` is dependent and satisfies:
+Internally, the kinematic chain converts `Theta3_rad` back to a relative joint
+rotation. The dependent-angle constraint is therefore:
 
 ```text
-Theta2Prime_rad + Theta2_rad + Theta3_rad = -pi/2
+Theta3Relative_rad = Theta3_rad - Theta2_rad
+Theta2Prime_rad + Theta2_rad + Theta3Relative_rad = -pi/2
 ```
 
 These are reference outputs for the current IK convention. Regenerate and
