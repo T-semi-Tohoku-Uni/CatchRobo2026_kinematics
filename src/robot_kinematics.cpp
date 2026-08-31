@@ -34,27 +34,17 @@
      *                |l3
      *
      */
+//
+// Created by yuta on 2023/09/02.
+//
 
 #include "ros2_inverse_kinematics/robot_kinematics.h"
 #include "ros2_inverse_kinematics/homogeneous_transform.h"
-
 #include <array>
 #include <cmath>
 #include <iostream>
 
-/*
- * void posrot_sum(float *posrot0, float *posrot1, float *posrot2){
-    for(int i=0; i<6; i++){
-        posrot0[i] = posrot1[i] + posrot[i]
-    }
-
-}
- */
-
-
 robot_kinematics::robot_kinematics(){
-
-
     link_len[0] = -40;
     link_len[1] =  90;
     link_len[2] = 480;
@@ -66,14 +56,7 @@ robot_kinematics::robot_kinematics(){
     joint_angle_lim[1][0]=0;    joint_angle_lim[1][1]=2*PI;
     joint_angle_lim[2][0]=0;    joint_angle_lim[2][1]=2*PI;
     joint_angle_lim[3][0]=0;    joint_angle_lim[3][1]=2*PI;
-
-
-    //robot_kinematics::forward_kinematics(&posrot_now, &joint_angle_now);
-    //robot_kinematics::forward_kinematics(&posrot_trg, &joint_angle_trg);
-
-
 }
-
 
 void robot_kinematics::convert_field2robot(float *f_posrot, float *r_posrot) {
     for(int i=0; i<6; i++){
@@ -87,6 +70,7 @@ void robot_kinematics::forward_kinematics(float *posrot, float *joint_angle) {
     }};
     const catchrobo_kinematics::TransformChain transforms =
         catchrobo_kinematics::make_transform_chain(independent_joint_angles);
+
     const catchrobo_kinematics::TransformMatrix &field_to_flange =
         transforms[5];
 
@@ -94,40 +78,43 @@ void robot_kinematics::forward_kinematics(float *posrot, float *joint_angle) {
     posrot[Y] = static_cast<float>(field_to_flange[7]);
     posrot[Z] = static_cast<float>(field_to_flange[11]);
 
-    // The dependent joint fixes field-frame roll and pitch. PHI is the one
-    // controllable flange orientation: field-frame yaw = theta1 + theta4.
     posrot[PHI] = joint_angle[0] + joint_angle[3];
     posrot[THE] = -PI / 2.0F;
     posrot[PSI] = 0;
-
 }
 
 void robot_kinematics::inverse_kinematics(float *f_posrot, float *joint_angle) {
-
     float _posrot[6];
-
     convert_field2robot(f_posrot, _posrot);
-
-
     using namespace std;
 
-
-    //Recalculate the point where the tip of the l1 is reaching
     float rxy = sqrt(pow(_posrot[X],2) + pow(_posrot[Y],2)) - link_len[0] - link_len[4];
     float _z  = _posrot[Z] - link_len[1];
     float l   = sqrt(pow(rxy,2) + pow(_z,2));
-
-    //cout<<"\nlxy:"<<lxy<<"\n_z:"<<_z<<"\nr:"<<r<<"\nth1_:"<<th1_<<"\nth1__:"<<th1__<<"\nth2_:"<<th2_<<"\nth2__:"<<th2__<<"\n"<<endl;
-
 
     joint_angle[0] = atan2(_posrot[X], _posrot[Y]);
 
     const float cosine_elbow =
         (pow(link_len[2], 2) + pow(link_len[3], 2) - pow(l, 2)) /
         (2 * link_len[2] * link_len[3]);
+
     joint_angle[2] = PI - acos(cosine_elbow);
-
     joint_angle[1] = PI/2 - joint_angle[2]/2 - atan2(rxy,_z);
-
     joint_angle[3] = _posrot[PHI] - joint_angle[0];
+}
+
+void robot_kinematics::get_joint_positions(float *joint_angle, float positions[6][3]) {
+    const std::array<double, 4> independent_joint_angles = {{
+        joint_angle[0], joint_angle[1], joint_angle[2], joint_angle[3]
+    }};
+    
+    // Homogeneous transformチェーンを利用して全リンクのフィールド座標を一括で取得
+    const catchrobo_kinematics::TransformChain transforms =
+        catchrobo_kinematics::make_transform_chain(independent_joint_angles);
+
+    for (int i = 0; i < 6; ++i) {
+        positions[i][X] = static_cast<float>(transforms[i][3]);
+        positions[i][Y] = static_cast<float>(transforms[i][7]);
+        positions[i][Z] = static_cast<float>(transforms[i][11]);
+    }
 }
