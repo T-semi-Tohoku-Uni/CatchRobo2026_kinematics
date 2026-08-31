@@ -156,19 +156,20 @@ inline TransformChain make_transform_chain(
         kRobotYMillimetres,
         kRobotZMillimetres);
 
-    // The constant pi/2 and negative signs preserve the existing IK's
-    // zero direction and positive-angle convention.
+    // theta1 turns the arm plane toward the target.  theta2 and theta3 are
+    // zero when their links point along field Z+ and increase toward the
+    // radial direction in that plane.
     frame[1] = multiply(frame[0], rotation_z(kPi / 2.0 - theta1));
     frame[2] = multiply(frame[1], multiply(
         translation(kBaseRadialOffsetMillimetres, 0.0,
             kBaseHeightMillimetres),
-        rotation_y(-theta2)));
+        rotation_y(theta2)));
     frame[3] = multiply(frame[2], multiply(
-        translation(kUpperArmLengthMillimetres, 0.0, 0.0),
-        rotation_y(-theta3)));
+        translation(0.0, 0.0, kUpperArmLengthMillimetres),
+        rotation_y(theta3)));
     frame[4] = multiply(frame[3], multiply(
-        translation(kForearmLengthMillimetres, 0.0, 0.0),
-        rotation_y(-theta2_prime - kPi / 2.0)));
+        translation(0.0, 0.0, kForearmLengthMillimetres),
+        rotation_y(theta2_prime)));
     const TransformMatrix flange_position = multiply(
         frame[4], translation(kFlangeOffsetMillimetres, 0.0, 0.0));
 

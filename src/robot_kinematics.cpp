@@ -91,20 +91,26 @@ void robot_kinematics::inverse_kinematics(float *f_posrot, float *joint_angle) {
     convert_field2robot(f_posrot, _posrot);
     using namespace std;
 
-    float rxy = sqrt(pow(_posrot[X],2) + pow(_posrot[Y],2)) - link_len[0] - link_len[4];
-    float _z  = _posrot[Z] - link_len[1];
+    // Solve the two-link wrist position.  The 40 mm base offset is radial,
+    // while the 40 mm flange offset is vertical in the field frame.
+    float rxy =
+        sqrt(pow(_posrot[X],2) + pow(_posrot[Y],2)) - link_len[0];
+    float _z  = _posrot[Z] - link_len[1] - link_len[4];
     float l   = sqrt(pow(rxy,2) + pow(_z,2));
 
     catchrobo_kinematics::JointAngles relative_joint_angles = {{}};
     relative_joint_angles[0] = atan2(_posrot[X], _posrot[Y]);
 
     const float cosine_elbow =
-        (pow(link_len[2], 2) + pow(link_len[3], 2) - pow(l, 2)) /
+        (pow(l, 2) - pow(link_len[2], 2) - pow(link_len[3], 2)) /
         (2 * link_len[2] * link_len[3]);
 
-    relative_joint_angles[2] = PI - acos(cosine_elbow);
+    relative_joint_angles[2] = acos(cosine_elbow);
     relative_joint_angles[1] =
-        PI/2 - relative_joint_angles[2]/2 - atan2(rxy,_z);
+        atan2(rxy, _z) - atan2(
+            link_len[3] * sin(relative_joint_angles[2]),
+            link_len[2] +
+                link_len[3] * cos(relative_joint_angles[2]));
     relative_joint_angles[3] = _posrot[PHI] - relative_joint_angles[0];
 
     const catchrobo_kinematics::JointAngles absolute_joint_angles =

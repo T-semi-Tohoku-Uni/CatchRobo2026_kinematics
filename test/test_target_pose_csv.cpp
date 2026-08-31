@@ -90,6 +90,8 @@ int main(int argc, char **argv)
         double maximum_position_error = 0.0;
         double maximum_theta_error = 0.0;
         double maximum_orientation_matrix_error = 0.0;
+        double minimum_joint_height = std::numeric_limits<double>::infinity();
+        bool joint_limits_hold = true;
 
         for (std::size_t pose_index = 0;
              pose_index < poses.size(); ++pose_index) {
@@ -126,6 +128,15 @@ int main(int argc, char **argv)
             const catchrobo_kinematics::TransformChain transforms =
                 catchrobo_kinematics::make_transform_chain(
                     relative_joint_angles);
+            joint_limits_hold = joint_limits_hold &&
+                joint_angles[1] >= -catchrobo_kinematics::kPi / 2.0 &&
+                joint_angles[1] <= catchrobo_kinematics::kPi / 2.0 &&
+                joint_angles[2] >= 0.0 &&
+                joint_angles[2] <= catchrobo_kinematics::kPi;
+            for (std::size_t frame = 2; frame < transforms.size(); ++frame) {
+                minimum_joint_height = std::min(
+                    minimum_joint_height, transforms[frame][11]);
+            }
             const catchrobo_kinematics::TransformMatrix expected_orientation =
                 catchrobo_kinematics::rotation_z(target.theta_radians);
             for (int row = 0; row < 3; ++row) {
@@ -167,7 +178,9 @@ int main(int argc, char **argv)
         if (reachable_count != poses.size() ||
             maximum_position_error > 1.0e-2 ||
             maximum_theta_error > 1.0e-5 ||
-            maximum_orientation_matrix_error > 1.0e-6) {
+            maximum_orientation_matrix_error > 1.0e-6 ||
+            minimum_joint_height < -1.0e-6 ||
+            !joint_limits_hold) {
             passed = false;
         }
 
@@ -178,7 +191,10 @@ int main(int argc, char **argv)
                   << std::setprecision(6) << maximum_position_error
                   << ", max_theta_error_rad=" << maximum_theta_error
                   << ", max_orientation_matrix_error="
-                  << maximum_orientation_matrix_error << '\n';
+                  << maximum_orientation_matrix_error
+                  << ", min_joint_z_mm=" << minimum_joint_height
+                  << ", joint_limits="
+                  << (joint_limits_hold ? "ok" : "failed") << '\n';
 
         const std::array<int, 3> sample_ids = {{1, 12, 24}};
         for (std::size_t sample_index = 0;
