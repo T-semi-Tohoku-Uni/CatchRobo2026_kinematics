@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "ros2_inverse_kinematics/homogeneous_transform.h"
 #include "ros2_inverse_kinematics/robot_kinematics.h"
 #include "ros2_inverse_kinematics/target_pose_csv.h"
 
@@ -88,6 +89,7 @@ int main(int argc, char **argv)
         std::size_t reachable_count = 0;
         double maximum_position_error = 0.0;
         double maximum_theta_error = 0.0;
+        double maximum_orientation_matrix_error = 0.0;
 
         for (std::size_t pose_index = 0;
              pose_index < poses.size(); ++pose_index) {
@@ -113,6 +115,25 @@ int main(int argc, char **argv)
                 static_cast<double>(std::fabs(wrapped_difference(
                     reconstructed_pose[PHI],
                     static_cast<float>(target.theta_radians)))));
+
+            const std::array<double, 4> independent_joint_angles = {{
+                joint_angles[0], joint_angles[1],
+                joint_angles[2], joint_angles[3]
+            }};
+            const catchrobo_kinematics::TransformChain transforms =
+                catchrobo_kinematics::make_transform_chain(
+                    independent_joint_angles);
+            const catchrobo_kinematics::TransformMatrix expected_orientation =
+                catchrobo_kinematics::rotation_z(target.theta_radians);
+            for (int row = 0; row < 3; ++row) {
+                for (int column = 0; column < 3; ++column) {
+                    maximum_orientation_matrix_error = std::max(
+                        maximum_orientation_matrix_error,
+                        std::fabs(
+                            transforms[5][row * 4 + column] -
+                            expected_orientation[row * 4 + column]));
+                }
+            }
 
             const std::array<double, 3> metres = target.position_metres();
             const std::array<double, 4> quaternion =
@@ -142,7 +163,8 @@ int main(int argc, char **argv)
 
         if (reachable_count != poses.size() ||
             maximum_position_error > 1.0e-2 ||
-            maximum_theta_error > 1.0e-5) {
+            maximum_theta_error > 1.0e-5 ||
+            maximum_orientation_matrix_error > 1.0e-6) {
             passed = false;
         }
 
@@ -151,7 +173,9 @@ int main(int argc, char **argv)
                   << ", reachable=" << reachable_count
                   << ", max_position_error_mm=" << std::fixed
                   << std::setprecision(6) << maximum_position_error
-                  << ", max_theta_error_rad=" << maximum_theta_error << '\n';
+                  << ", max_theta_error_rad=" << maximum_theta_error
+                  << ", max_orientation_matrix_error="
+                  << maximum_orientation_matrix_error << '\n';
 
         const std::array<int, 3> sample_ids = {{1, 12, 24}};
         for (std::size_t sample_index = 0;

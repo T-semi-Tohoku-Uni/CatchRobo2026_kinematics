@@ -94,8 +94,8 @@ void robot_kinematics::forward_kinematics(float *posrot, float *joint_angle) {
     posrot[Y] = static_cast<float>(field_to_flange[7]);
     posrot[Z] = static_cast<float>(field_to_flange[11]);
 
-    // PHI is the scalar flange angle consumed by the existing IK, not a
-    // general-purpose Euler decomposition of the matrix above.
+    // The dependent joint fixes field-frame roll and pitch. PHI is the one
+    // controllable flange orientation: field-frame yaw = theta1 + theta4.
     posrot[PHI] = joint_angle[0] + joint_angle[3];
     posrot[THE] = -PI / 2.0F;
     posrot[PSI] = 0;

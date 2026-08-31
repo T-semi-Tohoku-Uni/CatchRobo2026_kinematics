@@ -89,6 +89,16 @@ inline TransformMatrix rotation_z(double angle)
     }};
 }
 
+inline TransformMatrix pose_with_rotation(
+    const TransformMatrix &pose, const TransformMatrix &rotation)
+{
+    TransformMatrix result = rotation;
+    result[3] = pose[3];
+    result[7] = pose[7];
+    result[11] = pose[11];
+    return result;
+}
+
 inline double dependent_theta2_prime(
     double theta2, double theta3)
 {
@@ -136,9 +146,15 @@ inline TransformChain make_transform_chain(
     frame[4] = multiply(frame[3], multiply(
         translation(kForearmLengthMillimetres, 0.0, 0.0),
         rotation_y(-theta2_prime - kPi / 2.0)));
-    frame[5] = multiply(frame[4], multiply(
-        translation(kFlangeOffsetMillimetres, 0.0, 0.0),
-        rotation_x(theta4)));
+    const TransformMatrix flange_position = multiply(
+        frame[4], translation(kFlangeOffsetMillimetres, 0.0, 0.0));
+
+    // The dependent joint keeps field-frame roll and pitch fixed.  The only
+    // controllable flange orientation is field-frame yaw, whose IK convention
+    // is phi = theta1 + theta4.  Position is independent of theta4 because the
+    // flange point and the theta4 rotation point coincide.
+    frame[5] = pose_with_rotation(
+        flange_position, rotation_z(theta1 + theta4));
 
     return frame;
 }

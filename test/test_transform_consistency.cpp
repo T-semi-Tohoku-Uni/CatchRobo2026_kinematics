@@ -54,6 +54,19 @@ int main()
             nearly_equal(flange_pose[Y], transforms[5][7], 1.0e-3F) &&
             nearly_equal(flange_pose[Z], transforms[5][11], 1.0e-3F);
 
+        const catchrobo_kinematics::TransformMatrix expected_orientation =
+            catchrobo_kinematics::rotation_z(
+                input_joint_angles[0] + input_joint_angles[3]);
+        bool orientation_matches_task_yaw = true;
+        for (int row = 0; row < 3; ++row) {
+            for (int column = 0; column < 3; ++column) {
+                orientation_matches_task_yaw =
+                    orientation_matches_task_yaw && nearly_equal(
+                        transforms[5][row * 4 + column],
+                        expected_orientation[row * 4 + column], 1.0e-6F);
+            }
+        }
+
         const bool ik_matches_input =
             std::fabs(wrapped_difference(
                 solved_joint_angles[0], input_joint_angles[0])) < 1.0e-4F &&
@@ -72,7 +85,8 @@ int main()
             input_joint_angles[2] + catchrobo_kinematics::kPi / 2.0) <
             1.0e-12;
 
-        if (!matrix_matches_pose || !ik_matches_input || !constraint_holds) {
+        if (!matrix_matches_pose || !orientation_matches_task_yaw ||
+            !ik_matches_input || !constraint_holds) {
             std::cerr << "Consistency test failed for case " << index << '\n';
             passed = false;
         }
