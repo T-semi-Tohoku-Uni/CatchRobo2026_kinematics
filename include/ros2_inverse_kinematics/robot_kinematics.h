@@ -11,7 +11,7 @@
 
 #define PI 3.14159265
 
-const float robot_pos[6] = {675, -130, 228, 0, 0, 0};
+const float robot_pos[6] = {675, -190, 0, 0, 0, 0};
 
 
 
@@ -51,7 +51,7 @@ class robot_kinematics {
      */
 private:
 
-    float link_len[4];//mm
+    float link_len[5];//mm
     //float joint_angle_now[4];
     //float joint_angle_trg[4]
     float joint_angle_lim[4][2];//rad, {inf, sup}

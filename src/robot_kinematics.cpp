@@ -35,8 +35,10 @@
      *
      */
 
-#include "../test/include/robot_kinematics.h"
+#include "ros2_inverse_kinematics/robot_kinematics.h"
+#include "ros2_inverse_kinematics/homogeneous_transform.h"
 
+#include <array>
 #include <cmath>
 #include <iostream>
 
@@ -53,22 +55,11 @@
 robot_kinematics::robot_kinematics(){
 
 
-    link_len[0] = 550;
-    link_len[1] = 460;
-    link_len[2] =  43;
-    link_len[3] =  20;
-
-/*
-    joint_angle_now[0] = 0;
-    joint_angle_now[1] = PI * 1/4;
-    joint_angle_now[2] = PI * 3/4;
-
-
-    joint_angle_trg[0] = joint_angle_now[0];
-    joint_angle_trg[1] = joint_angle_now[1];
-    joint_angle_trg[2] = joint_angle_now[2];
-
-*/
+    link_len[0] = -40;
+    link_len[1] =  90;
+    link_len[2] = 480;
+    link_len[3] = 480;
+    link_len[4] =  40;
 
     //lower limit                   upper limit
     joint_angle_lim[0][0]=0;    joint_angle_lim[0][1]=2*PI;
@@ -91,13 +82,22 @@ void robot_kinematics::convert_field2robot(float *f_posrot, float *r_posrot) {
 }
 
 void robot_kinematics::forward_kinematics(float *posrot, float *joint_angle) {
-    float lxy = link_len[0]*std::sin(joint_angle[1]) + link_len[1]*std::sin(joint_angle[2]) + link_len[2];
+    const std::array<double, 4> independent_joint_angles = {{
+        joint_angle[0], joint_angle[1], joint_angle[2], joint_angle[3]
+    }};
+    const catchrobo_kinematics::TransformChain transforms =
+        catchrobo_kinematics::make_transform_chain(independent_joint_angles);
+    const catchrobo_kinematics::TransformMatrix &field_to_flange =
+        transforms[5];
 
-    posrot[X] = lxy*(-1)*std::sin(joint_angle[0]);
-    posrot[Y] = lxy*std::cos(joint_angle[0]);
-    posrot[Z] = link_len[0]*std::cos(joint_angle[1]) + link_len[1]*std::cos(joint_angle[2]) - link_len[3];
-    posrot[PHI] = joint_angle[0] + joint_angle[1];
-    posrot[THE] = 0;
+    posrot[X] = static_cast<float>(field_to_flange[3]);
+    posrot[Y] = static_cast<float>(field_to_flange[7]);
+    posrot[Z] = static_cast<float>(field_to_flange[11]);
+
+    // PHI is the scalar flange angle consumed by the existing IK, not a
+    // general-purpose Euler decomposition of the matrix above.
+    posrot[PHI] = joint_angle[0] + joint_angle[3];
+    posrot[THE] = -PI / 2.0F;
     posrot[PSI] = 0;
 
 }
@@ -113,24 +113,21 @@ void robot_kinematics::inverse_kinematics(float *f_posrot, float *joint_angle) {
 
 
     //Recalculate the point where the tip of the l1 is reaching
-    float lxy = sqrt(pow(_posrot[X],2) + pow(_posrot[Y],2)) - link_len[2];
-    float _z  = _posrot[Z] + link_len[3];
-    float r   = sqrt(pow(lxy,2) + pow(_z,2));
-
-
-    float th1_  = acos((pow(link_len[0], 2) + pow(r, 2) - pow(link_len[1], 2)) / (2 * link_len[0] * r) );
-    float th1__ = atan2(_z, lxy);
-    float th2_  = asin(link_len[0] * sin(th1_) / link_len[1] );
-    float th2__ = PI / 2 - th1__;
+    float rxy = sqrt(pow(_posrot[X],2) + pow(_posrot[Y],2)) - link_len[0] - link_len[4];
+    float _z  = _posrot[Z] - link_len[1];
+    float l   = sqrt(pow(rxy,2) + pow(_z,2));
 
     //cout<<"\nlxy:"<<lxy<<"\n_z:"<<_z<<"\nr:"<<r<<"\nth1_:"<<th1_<<"\nth1__:"<<th1__<<"\nth2_:"<<th2_<<"\nth2__:"<<th2__<<"\n"<<endl;
 
 
-    joint_angle[0] = atan2(_posrot[Y], _posrot[X]) - PI/2 ;
+    joint_angle[0] = atan2(_posrot[X], _posrot[Y]);
 
-    joint_angle[1] = PI/2 - th1__ - th1_;
+    const float cosine_elbow =
+        (pow(link_len[2], 2) + pow(link_len[3], 2) - pow(l, 2)) /
+        (2 * link_len[2] * link_len[3]);
+    joint_angle[2] = PI - acos(cosine_elbow);
 
-    joint_angle[2] = th2_ + th2__;
+    joint_angle[1] = PI/2 - joint_angle[2]/2 - atan2(rxy,_z);
 
     joint_angle[3] = _posrot[PHI] - joint_angle[0];
 }

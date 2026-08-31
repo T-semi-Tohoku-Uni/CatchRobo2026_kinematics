@@ -11,7 +11,7 @@
 
 #define PI 3.14159265
 
-const float robot_pos[6] = {675, -130, 228, 0, 0, 0};
+const float robot_pos[6] = {675, -190, 0, 0, 0, 0};
 
 
 
