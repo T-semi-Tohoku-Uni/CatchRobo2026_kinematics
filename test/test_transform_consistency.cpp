@@ -56,7 +56,11 @@ int main()
                 static_cast<float>(
                     catchrobo_kinematics::kBaseHeightMillimetres +
                     catchrobo_kinematics::kUpperArmLengthMillimetres +
-                    catchrobo_kinematics::kForearmLengthMillimetres +
+                    catchrobo_kinematics::kForearmLengthMillimetres),
+                1.0e-4F) &&
+            nearly_equal(
+                static_cast<float>(vertical[5][7] - vertical[4][7]),
+                static_cast<float>(
                     catchrobo_kinematics::kFlangeOffsetMillimetres),
                 1.0e-4F);
         if (!zero_angles_point_up) {

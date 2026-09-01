@@ -91,11 +91,12 @@ void robot_kinematics::inverse_kinematics(float *f_posrot, float *joint_angle) {
     convert_field2robot(f_posrot, _posrot);
     using namespace std;
 
-    // Solve the two-link wrist position.  The 40 mm base offset is radial,
-    // while the 40 mm flange offset is vertical in the field frame.
+    // Solve the two-link wrist position.  Both 40 mm offsets are horizontal
+    // in the arm plane: the base offset is inward and the flange is outward.
     float rxy =
-        sqrt(pow(_posrot[X],2) + pow(_posrot[Y],2)) - link_len[0];
-    float _z  = _posrot[Z] - link_len[1] - link_len[4];
+        sqrt(pow(_posrot[X],2) + pow(_posrot[Y],2)) -
+        link_len[0] - link_len[4];
+    float _z  = _posrot[Z] - link_len[1];
     float l   = sqrt(pow(rxy,2) + pow(_z,2));
 
     catchrobo_kinematics::JointAngles relative_joint_angles = {{}};

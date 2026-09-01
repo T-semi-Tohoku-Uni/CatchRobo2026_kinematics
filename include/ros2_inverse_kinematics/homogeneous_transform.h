@@ -169,7 +169,7 @@ inline TransformChain make_transform_chain(
         rotation_y(theta3)));
     frame[4] = multiply(frame[3], multiply(
         translation(0.0, 0.0, kForearmLengthMillimetres),
-        rotation_y(theta2_prime)));
+        rotation_y(theta2_prime + kPi / 2.0)));
     const TransformMatrix flange_position = multiply(
         frame[4], translation(kFlangeOffsetMillimetres, 0.0, 0.0));
 
