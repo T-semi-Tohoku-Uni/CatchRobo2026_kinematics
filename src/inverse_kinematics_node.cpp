@@ -52,9 +52,19 @@ private:
     visualization_msgs::msg::MarkerArray marker_array;
     rclcpp::Time now = this->now();
 
+    // frame 0 and frame 1 share the theta1 rotation point.  Delete the old
+    // zero-length arrow instead of rendering it as a misleading red dot.
+    visualization_msgs::msg::Marker obsolete_base_marker;
+    obsolete_base_marker.header.frame_id = "map";
+    obsolete_base_marker.header.stamp = now;
+    obsolete_base_marker.ns = "ik_links";
+    obsolete_base_marker.id = 0;
+    obsolete_base_marker.action = visualization_msgs::msg::Marker::DELETE;
+    marker_array.markers.push_back(obsolete_base_marker);
+
     // 1. 各リンクの描画
     // TransformChainから得た座標は既にフィールド座標（robot_posオフセット加算済み）になっています
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 1; i < 5; ++i) {
       visualization_msgs::msg::Marker marker;
       marker.header.frame_id = "map";
       marker.header.stamp = now;
@@ -98,6 +108,7 @@ private:
     target_marker.pose.position.x = target_pos[0] / 1000.0;
     target_marker.pose.position.y = target_pos[1] / 1000.0;
     target_marker.pose.position.z = target_pos[2] / 1000.0;
+    target_marker.pose.orientation.w = 1.0;
 
     target_marker.scale.x = 0.05;
     target_marker.scale.y = 0.05;

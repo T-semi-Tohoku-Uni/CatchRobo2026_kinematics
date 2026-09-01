@@ -65,11 +65,14 @@ void robot_kinematics::convert_field2robot(float *f_posrot, float *r_posrot) {
 }
 
 void robot_kinematics::forward_kinematics(float *posrot, float *joint_angle) {
-    const std::array<double, 4> independent_joint_angles = {{
+    const catchrobo_kinematics::JointAngles absolute_joint_angles = {{
         joint_angle[0], joint_angle[1], joint_angle[2], joint_angle[3]
     }};
+    const catchrobo_kinematics::JointAngles relative_joint_angles =
+        catchrobo_kinematics::absolute_to_relative_joint_angles(
+            absolute_joint_angles);
     const catchrobo_kinematics::TransformChain transforms =
-        catchrobo_kinematics::make_transform_chain(independent_joint_angles);
+        catchrobo_kinematics::make_transform_chain(relative_joint_angles);
 
     const catchrobo_kinematics::TransformMatrix &field_to_flange =
         transforms[5];
@@ -88,29 +91,48 @@ void robot_kinematics::inverse_kinematics(float *f_posrot, float *joint_angle) {
     convert_field2robot(f_posrot, _posrot);
     using namespace std;
 
-    float rxy = sqrt(pow(_posrot[X],2) + pow(_posrot[Y],2)) - link_len[0] - link_len[4];
+    // Solve the two-link wrist position.  Both 40 mm offsets are horizontal
+    // in the arm plane: the base offset is inward and the flange is outward.
+    float rxy =
+        sqrt(pow(_posrot[X],2) + pow(_posrot[Y],2)) -
+        link_len[0] - link_len[4];
     float _z  = _posrot[Z] - link_len[1];
     float l   = sqrt(pow(rxy,2) + pow(_z,2));
 
-    joint_angle[0] = atan2(_posrot[X], _posrot[Y]);
+    catchrobo_kinematics::JointAngles relative_joint_angles = {{}};
+    relative_joint_angles[0] = atan2(_posrot[X], _posrot[Y]);
 
     const float cosine_elbow =
-        (pow(link_len[2], 2) + pow(link_len[3], 2) - pow(l, 2)) /
+        (pow(l, 2) - pow(link_len[2], 2) - pow(link_len[3], 2)) /
         (2 * link_len[2] * link_len[3]);
 
-    joint_angle[2] = PI - acos(cosine_elbow);
-    joint_angle[1] = PI/2 - joint_angle[2]/2 - atan2(rxy,_z);
-    joint_angle[3] = _posrot[PHI] - joint_angle[0];
+    relative_joint_angles[2] = acos(cosine_elbow);
+    relative_joint_angles[1] =
+        atan2(rxy, _z) - atan2(
+            link_len[3] * sin(relative_joint_angles[2]),
+            link_len[2] +
+                link_len[3] * cos(relative_joint_angles[2]));
+    relative_joint_angles[3] = _posrot[PHI] - relative_joint_angles[0];
+
+    const catchrobo_kinematics::JointAngles absolute_joint_angles =
+        catchrobo_kinematics::relative_to_absolute_joint_angles(
+            relative_joint_angles);
+    for (std::size_t index = 0; index < absolute_joint_angles.size(); ++index) {
+        joint_angle[index] = static_cast<float>(absolute_joint_angles[index]);
+    }
 }
 
 void robot_kinematics::get_joint_positions(float *joint_angle, float positions[6][3]) {
-    const std::array<double, 4> independent_joint_angles = {{
+    const catchrobo_kinematics::JointAngles absolute_joint_angles = {{
         joint_angle[0], joint_angle[1], joint_angle[2], joint_angle[3]
     }};
+    const catchrobo_kinematics::JointAngles relative_joint_angles =
+        catchrobo_kinematics::absolute_to_relative_joint_angles(
+            absolute_joint_angles);
     
     // Homogeneous transformチェーンを利用して全リンクのフィールド座標を一括で取得
     const catchrobo_kinematics::TransformChain transforms =
-        catchrobo_kinematics::make_transform_chain(independent_joint_angles);
+        catchrobo_kinematics::make_transform_chain(relative_joint_angles);
 
     for (int i = 0; i < 6; ++i) {
         positions[i][X] = static_cast<float>(transforms[i][3]);

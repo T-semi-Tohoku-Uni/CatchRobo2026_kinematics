@@ -91,9 +91,16 @@ void generate_file(
                 std::to_string(targets[index].id) + " is unreachable");
         }
 
+        const catchrobo_kinematics::JointAngles absolute_joint_angles = {{
+            independent_joint_angles[0], independent_joint_angles[1],
+            independent_joint_angles[2], independent_joint_angles[3]
+        }};
+        const catchrobo_kinematics::JointAngles relative_joint_angles =
+            catchrobo_kinematics::absolute_to_relative_joint_angles(
+                absolute_joint_angles);
         const float theta2_prime = static_cast<float>(
             catchrobo_kinematics::dependent_theta2_prime(
-                independent_joint_angles[1], independent_joint_angles[2]));
+                relative_joint_angles[1], relative_joint_angles[2]));
         joint_rows.push_back({{
             independent_joint_angles[0],
             independent_joint_angles[1],

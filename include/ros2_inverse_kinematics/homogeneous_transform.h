@@ -8,6 +8,7 @@ namespace catchrobo_kinematics {
 
 using TransformMatrix = std::array<double, 16>;
 using TransformChain = std::array<TransformMatrix, 6>;
+using JointAngles = std::array<double, 4>;
 
 constexpr double kPi = 3.14159265358979323846;
 constexpr double kRobotXMillimetres = 675.0;
@@ -99,18 +100,40 @@ inline TransformMatrix pose_with_rotation(
     return result;
 }
 
-inline double dependent_theta2_prime(
-    double theta2, double theta3)
+// The public interface uses field-referenced (absolute) link angles, while the
+// serial kinematic chain uses joint-to-joint (relative) rotations.
+// Angle order: [theta1, theta2, theta3, theta4].
+inline JointAngles absolute_to_relative_joint_angles(
+    const JointAngles &absolute_joint_angles)
 {
-    return -kPi / 2.0 - theta2 - theta3;
+    JointAngles relative_joint_angles = absolute_joint_angles;
+    relative_joint_angles[2] =
+        absolute_joint_angles[2] - absolute_joint_angles[1];
+    return relative_joint_angles;
 }
 
-// independent_joint_angles: [theta1, theta2, theta3, theta4]
+inline JointAngles relative_to_absolute_joint_angles(
+    const JointAngles &relative_joint_angles)
+{
+    JointAngles absolute_joint_angles = relative_joint_angles;
+    absolute_joint_angles[2] =
+        relative_joint_angles[1] + relative_joint_angles[2];
+    return absolute_joint_angles;
+}
+
+inline double dependent_theta2_prime(
+    double theta2_relative, double theta3_relative)
+{
+    return -kPi / 2.0 - theta2_relative - theta3_relative;
+}
+
+// relative_joint_angles: [theta1, theta2_relative, theta3_relative, theta4]
 //
 // The IK convention is authoritative here:
 //   theta1 = atan2(robot_x, robot_y)
-//   theta2 is measured in the two-link arm plane
-//   theta2_prime + theta2 + theta3 = -pi/2
+//   theta2_relative is measured from field Z+ in the two-link arm plane
+//   theta3_relative is measured from the upper arm
+//   theta2_prime + theta2_relative + theta3_relative = -pi/2
 //
 // frame[0]: field -> robot base
 // frame[1]: field -> theta1 frame
@@ -119,12 +142,12 @@ inline double dependent_theta2_prime(
 // frame[4]: field -> theta2-prime frame
 // frame[5]: field -> theta4/flange frame
 inline TransformChain make_transform_chain(
-    const std::array<double, 4> &independent_joint_angles)
+    const JointAngles &relative_joint_angles)
 {
-    const double theta1 = independent_joint_angles[0];
-    const double theta2 = independent_joint_angles[1];
-    const double theta3 = independent_joint_angles[2];
-    const double theta4 = independent_joint_angles[3];
+    const double theta1 = relative_joint_angles[0];
+    const double theta2 = relative_joint_angles[1];
+    const double theta3 = relative_joint_angles[2];
+    const double theta4 = relative_joint_angles[3];
     const double theta2_prime = dependent_theta2_prime(theta2, theta3);
 
     TransformChain frame;
@@ -133,19 +156,20 @@ inline TransformChain make_transform_chain(
         kRobotYMillimetres,
         kRobotZMillimetres);
 
-    // The constant pi/2 and negative signs preserve the existing IK's
-    // zero direction and positive-angle convention.
+    // theta1 turns the arm plane toward the target.  theta2 and theta3 are
+    // zero when their links point along field Z+ and increase toward the
+    // radial direction in that plane.
     frame[1] = multiply(frame[0], rotation_z(kPi / 2.0 - theta1));
     frame[2] = multiply(frame[1], multiply(
         translation(kBaseRadialOffsetMillimetres, 0.0,
             kBaseHeightMillimetres),
-        rotation_y(-theta2)));
+        rotation_y(theta2)));
     frame[3] = multiply(frame[2], multiply(
-        translation(kUpperArmLengthMillimetres, 0.0, 0.0),
-        rotation_y(-theta3)));
+        translation(0.0, 0.0, kUpperArmLengthMillimetres),
+        rotation_y(theta3)));
     frame[4] = multiply(frame[3], multiply(
-        translation(kForearmLengthMillimetres, 0.0, 0.0),
-        rotation_y(-theta2_prime - kPi / 2.0)));
+        translation(0.0, 0.0, kForearmLengthMillimetres),
+        rotation_y(theta2_prime + kPi / 2.0)));
     const TransformMatrix flange_position = multiply(
         frame[4], translation(kFlangeOffsetMillimetres, 0.0, 0.0));
 

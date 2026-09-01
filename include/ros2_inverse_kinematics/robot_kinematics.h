@@ -32,6 +32,8 @@ private:
 
 public:
     robot_kinematics();
+    // Public joint-angle order: [theta1, theta2, theta3, theta4] in radians.
+    // theta2 and theta3 are absolute link angles referenced to the field frame.
     void inverse_kinematics(float*, float*);
     void forward_kinematics(float*, float*);
     void get_joint_positions(float *joint_angle, float positions[6][3]);
