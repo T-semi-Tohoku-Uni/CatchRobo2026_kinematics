@@ -34,55 +34,29 @@
      *                |l3
      *
      */
+//
+// Created by yuta on 2023/09/02.
+//
 
-#include "../test/include/robot_kinematics.h"
-
+#include "ros2_inverse_kinematics/robot_kinematics.h"
+#include "ros2_inverse_kinematics/homogeneous_transform.h"
+#include <array>
 #include <cmath>
 #include <iostream>
 
-/*
- * void posrot_sum(float *posrot0, float *posrot1, float *posrot2){
-    for(int i=0; i<6; i++){
-        posrot0[i] = posrot1[i] + posrot[i]
-    }
-
-}
- */
-
-
 robot_kinematics::robot_kinematics(){
-
-
-    link_len[0] = 480;
-    link_len[1] = 480;
-    link_len[2] =  40;
-    link_len[3] =  0;
-
-/*
-    joint_angle_now[0] = 0;
-    joint_angle_now[1] = PI * 1/4;
-    joint_angle_now[2] = PI * 3/4;
-
-
-    joint_angle_trg[0] = joint_angle_now[0];
-    joint_angle_trg[1] = joint_angle_now[1];
-    joint_angle_trg[2] = joint_angle_now[2];
-
-*/
+    link_len[0] = -40;
+    link_len[1] =  90;
+    link_len[2] = 480;
+    link_len[3] = 480;
+    link_len[4] =  40;
 
     //lower limit                   upper limit
     joint_angle_lim[0][0]=0;    joint_angle_lim[0][1]=2*PI;
     joint_angle_lim[1][0]=0;    joint_angle_lim[1][1]=2*PI;
     joint_angle_lim[2][0]=0;    joint_angle_lim[2][1]=2*PI;
     joint_angle_lim[3][0]=0;    joint_angle_lim[3][1]=2*PI;
-
-
-    //robot_kinematics::forward_kinematics(&posrot_now, &joint_angle_now);
-    //robot_kinematics::forward_kinematics(&posrot_trg, &joint_angle_trg);
-
-
 }
-
 
 void robot_kinematics::convert_field2robot(float *f_posrot, float *r_posrot) {
     for(int i=0; i<6; i++){
@@ -91,46 +65,78 @@ void robot_kinematics::convert_field2robot(float *f_posrot, float *r_posrot) {
 }
 
 void robot_kinematics::forward_kinematics(float *posrot, float *joint_angle) {
-    float lxy = link_len[0]*std::sin(joint_angle[1]) + link_len[1]*std::sin(joint_angle[2]) + link_len[2];
+    const catchrobo_kinematics::JointAngles absolute_joint_angles = {{
+        joint_angle[0], joint_angle[1], joint_angle[2], joint_angle[3]
+    }};
+    const catchrobo_kinematics::JointAngles relative_joint_angles =
+        catchrobo_kinematics::absolute_to_relative_joint_angles(
+            absolute_joint_angles);
+    const catchrobo_kinematics::TransformChain transforms =
+        catchrobo_kinematics::make_transform_chain(relative_joint_angles);
 
-    posrot[X] = lxy*(-1)*std::sin(joint_angle[0]);
-    posrot[Y] = lxy*std::cos(joint_angle[0]);
-    posrot[Z] = link_len[0]*std::cos(joint_angle[1]) + link_len[1]*std::cos(joint_angle[2]) - link_len[3];
-    posrot[PHI] = joint_angle[0] + joint_angle[1];
-    posrot[THE] = 0;
+    const catchrobo_kinematics::TransformMatrix &field_to_flange =
+        transforms[5];
+
+    posrot[X] = static_cast<float>(field_to_flange[3]);
+    posrot[Y] = static_cast<float>(field_to_flange[7]);
+    posrot[Z] = static_cast<float>(field_to_flange[11]);
+
+    posrot[PHI] = joint_angle[0] + joint_angle[3];
+    posrot[THE] = -PI / 2.0F;
     posrot[PSI] = 0;
-
 }
 
 void robot_kinematics::inverse_kinematics(float *f_posrot, float *joint_angle) {
-
     float _posrot[6];
-
     convert_field2robot(f_posrot, _posrot);
-
-
     using namespace std;
 
+    // Solve the two-link wrist position.  Both 40 mm offsets are horizontal
+    // in the arm plane: the base offset is inward and the flange is outward.
+    float rxy =
+        sqrt(pow(_posrot[X],2) + pow(_posrot[Y],2)) -
+        link_len[0] - link_len[4];
+    float _z  = _posrot[Z] - link_len[1];
+    float l   = sqrt(pow(rxy,2) + pow(_z,2));
 
-    //Recalculate the point where the tip of the l1 is reaching
-    float lxy = sqrt(pow(_posrot[X],2) + pow(_posrot[Y],2)) - link_len[2];
-    float _z  = _posrot[Z] + link_len[3];
-    float r   = sqrt(pow(lxy,2) + pow(_z,2));
+    catchrobo_kinematics::JointAngles relative_joint_angles = {{}};
+    relative_joint_angles[0] = atan2(_posrot[X], _posrot[Y]);
 
+    const float cosine_elbow =
+        (pow(l, 2) - pow(link_len[2], 2) - pow(link_len[3], 2)) /
+        (2 * link_len[2] * link_len[3]);
 
-    float th1_  = acos((pow(link_len[0], 2) + pow(r, 2) - pow(link_len[1], 2)) / (2 * link_len[0] * r) );
-    float th1__ = atan2(_z, lxy);
-    float th2_  = asin(link_len[0] * sin(th1_) / link_len[1] );
-    float th2__ = PI / 2 - th1__;
+    relative_joint_angles[2] = acos(cosine_elbow);
+    relative_joint_angles[1] =
+        atan2(rxy, _z) - atan2(
+            link_len[3] * sin(relative_joint_angles[2]),
+            link_len[2] +
+                link_len[3] * cos(relative_joint_angles[2]));
+    relative_joint_angles[3] = _posrot[PHI] - relative_joint_angles[0];
 
-    //cout<<"\nlxy:"<<lxy<<"\n_z:"<<_z<<"\nr:"<<r<<"\nth1_:"<<th1_<<"\nth1__:"<<th1__<<"\nth2_:"<<th2_<<"\nth2__:"<<th2__<<"\n"<<endl;
+    const catchrobo_kinematics::JointAngles absolute_joint_angles =
+        catchrobo_kinematics::relative_to_absolute_joint_angles(
+            relative_joint_angles);
+    for (std::size_t index = 0; index < absolute_joint_angles.size(); ++index) {
+        joint_angle[index] = static_cast<float>(absolute_joint_angles[index]);
+    }
+}
 
+void robot_kinematics::get_joint_positions(float *joint_angle, float positions[6][3]) {
+    const catchrobo_kinematics::JointAngles absolute_joint_angles = {{
+        joint_angle[0], joint_angle[1], joint_angle[2], joint_angle[3]
+    }};
+    const catchrobo_kinematics::JointAngles relative_joint_angles =
+        catchrobo_kinematics::absolute_to_relative_joint_angles(
+            absolute_joint_angles);
+    
+    // Homogeneous transformチェーンを利用して全リンクのフィールド座標を一括で取得
+    const catchrobo_kinematics::TransformChain transforms =
+        catchrobo_kinematics::make_transform_chain(relative_joint_angles);
 
-    joint_angle[0] = atan2(_posrot[Y], _posrot[X]) - PI/2 ;
-
-    joint_angle[1] = PI/2 - th1__ - th1_;
-
-    joint_angle[2] = th2_ + th2__;
-
-    joint_angle[3] = _posrot[PHI] - joint_angle[0];
+    for (int i = 0; i < 6; ++i) {
+        positions[i][X] = static_cast<float>(transforms[i][3]);
+        positions[i][Y] = static_cast<float>(transforms[i][7]);
+        positions[i][Z] = static_cast<float>(transforms[i][11]);
+    }
 }
