@@ -22,7 +22,7 @@ class robot_kinematics {
     /*
      * The unit of length is [mm], and the unit of angle is [rad].
      * Field origin is set at the front-left corner on the top surface of the field
-     * Robot origin is set at the point where the orientation axis of th0 and th1 cross(675, -130, 228)
+     * Robot origin is set at the point where the orientation axes of th0 and th1 cross (675, -190, 0).
      * The origin of hand coordinate is set at the point that hand rotation axis and the bottom surface of the endfactor_adapter cross.
      * Positive of field Y axle is set toward opponent.
      * Positive of field X axle is set toward right facing opponent.

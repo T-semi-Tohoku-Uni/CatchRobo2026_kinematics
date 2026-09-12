@@ -57,8 +57,8 @@ private:
     visualization_msgs::msg::MarkerArray marker_array;
     rclcpp::Time now = this->now();
 
-    // Frames 0, 1, and 2 share the same point with zero base offsets.
-    for (int id = 0; id < 2; ++id) {
+    // Frames 0 and 1 share the theta1 rotation point.
+    for (int id = 0; id < 1; ++id) {
       visualization_msgs::msg::Marker obsolete_base_marker;
       obsolete_base_marker.header.frame_id = "map";
       obsolete_base_marker.header.stamp = now;
@@ -69,7 +69,7 @@ private:
     }
 
     // TransformChain positions are already expressed in the field frame.
-    for (int i = 2; i < 5; ++i) {
+    for (int i = 1; i < 5; ++i) {
       visualization_msgs::msg::Marker marker;
       marker.header.frame_id = "map";
       marker.header.stamp = now;

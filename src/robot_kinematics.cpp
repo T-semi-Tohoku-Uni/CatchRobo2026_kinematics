@@ -4,7 +4,7 @@
 /*
      * The unit of length is [mm], and the unit of angle is [rad].
      * Field origin is set at the front-left corner on the top surface of the field
-     * Robot origin is set at the point where the orientation axis of th0 and th1 cross(675, -130, 228)
+     * Robot origin is set at the point where the orientation axes of th0 and th1 cross (675, -190, 0).
      * The origin of hand coordinate is set at the point that hand rotation axis and the bottom surface of the endfactor_adapter cross.
      * Positive of field Y axle is set toward opponent.
      * Positive of field X axle is set toward right facing opponent.
@@ -145,8 +145,7 @@ void robot_kinematics::inverse_kinematics(float *f_posrot, float *joint_angle) {
 
     relative_joint_angles[2] = std::acos(cosine_elbow);
     relative_joint_angles[1] =
-        catchrobo_kinematics::kPi / 2.0 - std::atan2(robot_z, rxy) -
-        std::atan2(
+        std::atan2(rxy, robot_z) - std::atan2(
             forearm * std::sin(relative_joint_angles[2]),
             upper_arm + forearm * std::cos(relative_joint_angles[2]));
     relative_joint_angles[3] = _posrot[PHI] - relative_joint_angles[0];

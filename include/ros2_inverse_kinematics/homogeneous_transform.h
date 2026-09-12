@@ -12,19 +12,19 @@ using JointAngles = std::array<double, 4>;
 
 constexpr double kPi = 3.14159265358979323846;
 constexpr double kRobotXMillimetres = 675.0;
-constexpr double kRobotYMillimetres = -130.0;
-constexpr double kRobotZMillimetres = 228.0;
-constexpr double kBaseRadialOffsetMillimetres = 0.0;
-constexpr double kBaseHeightMillimetres = 0.0;
+constexpr double kRobotYMillimetres = -190.0;
+constexpr double kRobotZMillimetres = 0.0;
+constexpr double kBaseRadialOffsetMillimetres = -40.0;
+constexpr double kBaseHeightMillimetres = 90.0;
 constexpr double kUpperArmLengthMillimetres = 480.0;
 constexpr double kForearmLengthMillimetres = 480.0;
 constexpr double kFlangeOffsetMillimetres = 40.0;
 constexpr double kToolVerticalOffsetMillimetres = 0.0;
 
-// Joint zero points toward field Y+. Positive rotation is counter-clockwise.
+// Keep the public base-joint convention used by the legacy integration.
 inline double base_angle(double robot_x, double robot_y)
 {
-    return std::atan2(-robot_x, robot_y);
+    return std::atan2(robot_x, robot_y);
 }
 
 inline TransformMatrix identity_transform()
@@ -137,7 +137,7 @@ inline double dependent_theta2_prime(
 // relative_joint_angles: [theta1, theta2_relative, theta3_relative, theta4]
 //
 // The IK convention is authoritative here:
-//   theta1 = atan2(-robot_x, robot_y), in the principal [-pi, pi] range
+//   theta1 = atan2(robot_x, robot_y), in the principal [-pi, pi] range
 //   theta2_relative is measured from field Z+ in the two-link arm plane
 //   theta3_relative is measured from the upper arm
 //   theta2_prime + theta2_relative + theta3_relative = -pi/2
@@ -166,7 +166,7 @@ inline TransformChain make_transform_chain(
     // theta1 turns the arm plane toward the target.  theta2 and theta3 are
     // zero when their links point along field Z+ and increase toward the
     // radial direction in that plane.
-    frame[1] = multiply(frame[0], rotation_z(kPi / 2.0 + theta1));
+    frame[1] = multiply(frame[0], rotation_z(kPi / 2.0 - theta1));
     frame[2] = multiply(frame[1], multiply(
         translation(kBaseRadialOffsetMillimetres, 0.0,
             kBaseHeightMillimetres),

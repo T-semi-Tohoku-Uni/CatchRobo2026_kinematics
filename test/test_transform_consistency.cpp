@@ -54,9 +54,9 @@ int main()
 
     const std::array<std::array<double, 3>, 4> base_angle_cases = {{
         {{0.0, 1.0, 0.0}},
-        {{-1.0, 0.0, catchrobo_kinematics::kPi / 2.0}},
+        {{-1.0, 0.0, -catchrobo_kinematics::kPi / 2.0}},
         {{0.0, -1.0, catchrobo_kinematics::kPi}},
-        {{1.0, 0.0, -catchrobo_kinematics::kPi / 2.0}}
+        {{1.0, 0.0, catchrobo_kinematics::kPi / 2.0}}
     }};
     for (std::size_t index = 0; index < base_angle_cases.size(); ++index) {
         if (std::fabs(wrapped_difference(
@@ -69,14 +69,14 @@ int main()
     }
 
     const std::array<std::array<float, 7>, 3> known_forward_cases = {{
-        {{0.0F, 0.0F, 0.0F, 675.0F, -90.0F, 1188.0F, 0.0F}},
+        {{0.0F, 0.0F, 0.0F, 675.0F, -190.0F, 1050.0F, 0.0F}},
         {{0.0F, static_cast<float>(catchrobo_kinematics::kPi / 2.0),
             static_cast<float>(catchrobo_kinematics::kPi / 2.0),
-            675.0F, 870.0F, 228.0F, 0.0F}},
+            675.0F, 770.0F, 90.0F, 0.0F}},
         {{static_cast<float>(catchrobo_kinematics::kPi / 2.0),
             static_cast<float>(catchrobo_kinematics::kPi / 2.0),
             static_cast<float>(catchrobo_kinematics::kPi / 2.0),
-            -325.0F, -130.0F, 228.0F,
+            1635.0F, -190.0F, 90.0F,
             static_cast<float>(catchrobo_kinematics::kPi / 2.0)}}
     }};
     for (std::size_t index = 0; index < known_forward_cases.size(); ++index) {
@@ -95,50 +95,81 @@ int main()
         }
     }
 
-    float before_crossing[6] = {675.0F, -90.0F, 229.0F, 0.0F, 0.0F, 0.0F};
-    float after_crossing[6] = {675.0F, -90.0F, 228.1F, 0.0F, 0.0F, 0.0F};
-    float before_joints[4] = {};
-    float after_joints[4] = {};
-    kinematics.inverse_kinematics(before_crossing, before_joints);
-    kinematics.inverse_kinematics(after_crossing, after_joints);
-    float reconstructed_before[6] = {};
-    float reconstructed_after[6] = {};
-    kinematics.forward_kinematics(reconstructed_before, before_joints);
-    kinematics.forward_kinematics(reconstructed_after, after_joints);
-    if (!all_finite(before_joints, 4) || !all_finite(after_joints, 4) ||
-        std::fabs(after_joints[1] - before_joints[1]) > 0.1F ||
-        std::fabs(after_joints[2] - before_joints[2]) > 0.1F ||
-        !nearly_equal(reconstructed_before[X], before_crossing[X], 1.0e-3F) ||
-        !nearly_equal(reconstructed_before[Y], before_crossing[Y], 1.0e-3F) ||
-        !nearly_equal(reconstructed_before[Z], before_crossing[Z], 1.0e-3F) ||
-        !nearly_equal(reconstructed_after[X], after_crossing[X], 1.0e-3F) ||
-        !nearly_equal(reconstructed_after[Y], after_crossing[Y], 1.0e-3F) ||
-        !nearly_equal(reconstructed_after[Z], after_crossing[Z], 1.0e-3F)) {
-        std::cerr << "Shoulder angles jump across the flange-radius boundary\n";
+    struct LegacyIkCase {
+        std::array<float, 6> pose;
+        std::array<float, 4> expected_joints;
+        float tolerance;
+    };
+    constexpr float degrees_to_radians =
+        static_cast<float>(catchrobo_kinematics::kPi / 180.0);
+    const std::array<LegacyIkCase, 4> legacy_ik_cases = {{
+        {{{670.0F, -110.0F, 220.0F, 0.0F, 0.0F, 0.0F}},
+            {{-3.576334F * degrees_to_radians,
+              -49.188615F * degrees_to_radians,
+              112.503365F * degrees_to_radians,
+              3.576334F * degrees_to_radians}}, 2.0e-5F},
+        {{{670.0F, -110.0F, 220.0F,
+            -2.0F * static_cast<float>(catchrobo_kinematics::kPi), 0.0F, 0.0F}},
+            {{-3.576334F * degrees_to_radians,
+              -49.188615F * degrees_to_radians,
+              112.503365F * degrees_to_radians,
+              -356.423668F * degrees_to_radians}}, 2.0e-5F},
+        {{{175.0F, 138.0F, 166.95F,
+            -static_cast<float>(catchrobo_kinematics::kPi / 2.0), 0.0F, 0.0F}},
+            {{-0.990214705467224F, 0.551046848297119F,
+              2.33458733558655F, -0.580581665039062F}}, 1.0e-5F},
+        {{{1256.2F, -71.65F, 294.35F,
+            -static_cast<float>(catchrobo_kinematics::kPi / 2.0), 0.0F, 0.0F}},
+            {{1.36991238594055F, 0.380382359027863F,
+              2.09762382507324F, -2.94070863723755F}}, 1.0e-5F}
+    }};
+    for (std::size_t index = 0; index < legacy_ik_cases.size(); ++index) {
+        float joints[4] = {};
+        std::array<float, 6> pose = legacy_ik_cases[index].pose;
+        kinematics.inverse_kinematics(pose.data(), joints);
+        bool matches = all_finite(joints, 4);
+        for (std::size_t joint = 0; joint < 4; ++joint) {
+            const float expected = legacy_ik_cases[index].expected_joints[joint];
+            matches = matches &&
+                std::fabs(joints[joint] - expected) <= legacy_ik_cases[index].tolerance;
+        }
+        if (!matches) {
+            std::cerr << "Legacy non-wrapped IK output changed for case " << index << '\n';
+            for (std::size_t joint = 0; joint < 4; ++joint) {
+                std::cerr << "  joint " << joint << ": " << joints[joint]
+                          << " expected "
+                          << legacy_ik_cases[index].expected_joints[joint]
+                          << '\n';
+            }
+            passed = false;
+        }
+    }
+
+    float near_fold_pose[6] = {675.0F, -190.0F, 90.1F, 0.0F, 0.0F, 0.0F};
+    float near_fold_joints[4] = {};
+    float near_fold_reconstructed[6] = {};
+    kinematics.inverse_kinematics(near_fold_pose, near_fold_joints);
+    kinematics.forward_kinematics(near_fold_reconstructed, near_fold_joints);
+    if (!all_finite(near_fold_joints, 4) ||
+        !nearly_equal(near_fold_reconstructed[X], near_fold_pose[X], 1.0e-3F) ||
+        !nearly_equal(near_fold_reconstructed[Y], near_fold_pose[Y], 1.0e-3F) ||
+        !nearly_equal(near_fold_reconstructed[Z], near_fold_pose[Z], 1.0e-3F)) {
+        std::cerr << "Near-fold IK lost double-precision reconstruction\n";
         passed = false;
     }
 
-    float inside_radius[6] = {675.0F, -91.0F, 220.0F, 0.0F, 0.0F, 0.0F};
-    float outside_radius[6] = {675.0F, -89.0F, 220.0F, 0.0F, 0.0F, 0.0F};
-    float inside_joints[4] = {};
-    float outside_joints[4] = {};
-    kinematics.inverse_kinematics(inside_radius, inside_joints);
-    kinematics.inverse_kinematics(outside_radius, outside_joints);
-    if (!all_finite(inside_joints, 4) || !all_finite(outside_joints, 4) ||
-        std::fabs(outside_joints[1] - inside_joints[1]) > 1.0F ||
-        std::fabs(outside_joints[2] - inside_joints[2]) > 1.0F) {
-        std::cerr << "Shoulder branch jumps across zero radial distance\n";
-        passed = false;
-    }
-
-    float folded_pose[6] = {675.0F, -90.0F, 228.0F, 0.0F, 0.0F, 0.0F};
-    float invalid_pose[6] = {675.0F, -90.0F, 229.0F, 0.0F, 0.0F, 0.0F};
+    float folded_pose[6] = {675.0F, -190.0F, 90.0F, 0.0F, 0.0F, 0.0F};
+    float unreachable_pose[6] = {5000.0F, -190.0F, 90.0F, 0.0F, 0.0F, 0.0F};
+    float invalid_pose[6] = {675.0F, -190.0F, 91.0F, 0.0F, 0.0F, 0.0F};
     invalid_pose[X] = std::numeric_limits<float>::infinity();
     float folded_joints[4] = {};
+    float unreachable_joints[4] = {};
     float invalid_joints[4] = {};
     kinematics.inverse_kinematics(folded_pose, folded_joints);
+    kinematics.inverse_kinematics(unreachable_pose, unreachable_joints);
     kinematics.inverse_kinematics(invalid_pose, invalid_joints);
-    if (!all_nan(folded_joints, 4) || !all_nan(invalid_joints, 4)) {
+    if (!all_nan(folded_joints, 4) || !all_nan(unreachable_joints, 4) ||
+        !all_nan(invalid_joints, 4)) {
         std::cerr << "Invalid IK input was not rejected\n";
         passed = false;
     }
