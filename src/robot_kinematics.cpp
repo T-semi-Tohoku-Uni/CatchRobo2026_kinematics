@@ -40,16 +40,18 @@
 
 #include "ros2_inverse_kinematics/robot_kinematics.h"
 #include "ros2_inverse_kinematics/homogeneous_transform.h"
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <iostream>
+#include <limits>
 
 robot_kinematics::robot_kinematics(){
-    link_len[0] = -40;
-    link_len[1] =  90;
-    link_len[2] = 480;
-    link_len[3] = 480;
-    link_len[4] =  40;
+    link_len[0] = catchrobo_kinematics::kBaseRadialOffsetMillimetres;
+    link_len[1] = catchrobo_kinematics::kBaseHeightMillimetres;
+    link_len[2] = catchrobo_kinematics::kUpperArmLengthMillimetres;
+    link_len[3] = catchrobo_kinematics::kForearmLengthMillimetres;
+    link_len[4] = catchrobo_kinematics::kFlangeOffsetMillimetres;
 
     //lower limit                   upper limit
     joint_angle_lim[0][0]=0;    joint_angle_lim[0][1]=2*PI;
@@ -87,31 +89,66 @@ void robot_kinematics::forward_kinematics(float *posrot, float *joint_angle) {
 }
 
 void robot_kinematics::inverse_kinematics(float *f_posrot, float *joint_angle) {
+    for (int index = 0; index < 6; ++index) {
+        if (!std::isfinite(f_posrot[index])) {
+            const float invalid = std::numeric_limits<float>::quiet_NaN();
+            std::fill(joint_angle, joint_angle + 4, invalid);
+            return;
+        }
+    }
+
     float _posrot[6];
     convert_field2robot(f_posrot, _posrot);
     using namespace std;
 
-    // Solve the two-link wrist position.  Both 40 mm offsets are horizontal
-    // in the arm plane: the base offset is inward and the flange is outward.
-    float rxy =
-        sqrt(pow(_posrot[X],2) + pow(_posrot[Y],2)) -
-        link_len[0] - link_len[4];
-    float _z  = _posrot[Z] - link_len[1];
-    float l   = sqrt(pow(rxy,2) + pow(_z,2));
+    // Solve the two-link wrist position after removing fixed offsets.
+    const double robot_x = static_cast<double>(_posrot[X]);
+    const double robot_y = static_cast<double>(_posrot[Y]);
+    const double rxy = std::hypot(robot_x, robot_y) -
+        catchrobo_kinematics::kBaseRadialOffsetMillimetres -
+        catchrobo_kinematics::kFlangeOffsetMillimetres;
+    const double robot_z = static_cast<double>(_posrot[Z]) -
+        catchrobo_kinematics::kBaseHeightMillimetres +
+        catchrobo_kinematics::kToolVerticalOffsetMillimetres;
+    const double wrist_distance = std::hypot(rxy, robot_z);
+
+    constexpr double kFoldedDistanceToleranceMillimetres = 1.0e-6;
+    if (wrist_distance <= kFoldedDistanceToleranceMillimetres) {
+        const float invalid = std::numeric_limits<float>::quiet_NaN();
+        std::fill(joint_angle, joint_angle + 4, invalid);
+        return;
+    }
 
     catchrobo_kinematics::JointAngles relative_joint_angles = {{}};
-    relative_joint_angles[0] = atan2(_posrot[X], _posrot[Y]);
+    relative_joint_angles[0] = catchrobo_kinematics::base_angle(
+        robot_x, robot_y);
 
-    const float cosine_elbow =
-        (pow(l, 2) - pow(link_len[2], 2) - pow(link_len[3], 2)) /
-        (2 * link_len[2] * link_len[3]);
+    const double upper_arm =
+        catchrobo_kinematics::kUpperArmLengthMillimetres;
+    const double forearm =
+        catchrobo_kinematics::kForearmLengthMillimetres;
+    const double cosine_elbow_unclamped =
+        (wrist_distance * wrist_distance - upper_arm * upper_arm -
+            forearm * forearm) /
+        (2.0 * upper_arm * forearm);
 
-    relative_joint_angles[2] = acos(cosine_elbow);
+    constexpr double kReachabilityTolerance = 1.0e-5;
+    if (!std::isfinite(cosine_elbow_unclamped) ||
+        cosine_elbow_unclamped < -1.0 - kReachabilityTolerance ||
+        cosine_elbow_unclamped > 1.0 + kReachabilityTolerance) {
+        const float invalid = std::numeric_limits<float>::quiet_NaN();
+        std::fill(joint_angle, joint_angle + 4, invalid);
+        return;
+    }
+    const double cosine_elbow = std::max(
+        -1.0, std::min(1.0, cosine_elbow_unclamped));
+
+    relative_joint_angles[2] = std::acos(cosine_elbow);
     relative_joint_angles[1] =
-        atan2(rxy, _z) - atan2(
-            link_len[3] * sin(relative_joint_angles[2]),
-            link_len[2] +
-                link_len[3] * cos(relative_joint_angles[2]));
+        catchrobo_kinematics::kPi / 2.0 - std::atan2(robot_z, rxy) -
+        std::atan2(
+            forearm * std::sin(relative_joint_angles[2]),
+            upper_arm + forearm * std::cos(relative_joint_angles[2]));
     relative_joint_angles[3] = _posrot[PHI] - relative_joint_angles[0];
 
     const catchrobo_kinematics::JointAngles absolute_joint_angles =

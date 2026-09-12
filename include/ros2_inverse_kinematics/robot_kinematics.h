@@ -6,11 +6,17 @@
 #define CATCHROBO2023_ROBOT_KINEMATICS_H
 
 //#include <Eigen>
+#include "homogeneous_transform.h"
 #include "posrot_vector.h"
 
 #define PI 3.14159265
 
-const float robot_pos[6] = {675, -190, 0, 0, 0, 0};
+const float robot_pos[6] = {
+    static_cast<float>(catchrobo_kinematics::kRobotXMillimetres),
+    static_cast<float>(catchrobo_kinematics::kRobotYMillimetres),
+    static_cast<float>(catchrobo_kinematics::kRobotZMillimetres),
+    0.0F, 0.0F, 0.0F
+};
 
 class robot_kinematics {
     /*

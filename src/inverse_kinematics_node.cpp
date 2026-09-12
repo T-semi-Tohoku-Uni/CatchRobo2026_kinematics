@@ -42,6 +42,11 @@ private:
     response->joint_angles[2] = joint_angle[2];
     response->joint_angles[3] = joint_angle[3];
 
+    for (const float angle : joint_angle) {
+      if (!std::isfinite(angle)) {
+        return;
+      }
+    }
     publish_markers(joint_angle, target_pos);
   }
 
@@ -52,19 +57,19 @@ private:
     visualization_msgs::msg::MarkerArray marker_array;
     rclcpp::Time now = this->now();
 
-    // frame 0 and frame 1 share the theta1 rotation point.  Delete the old
-    // zero-length arrow instead of rendering it as a misleading red dot.
-    visualization_msgs::msg::Marker obsolete_base_marker;
-    obsolete_base_marker.header.frame_id = "map";
-    obsolete_base_marker.header.stamp = now;
-    obsolete_base_marker.ns = "ik_links";
-    obsolete_base_marker.id = 0;
-    obsolete_base_marker.action = visualization_msgs::msg::Marker::DELETE;
-    marker_array.markers.push_back(obsolete_base_marker);
+    // Frames 0, 1, and 2 share the same point with zero base offsets.
+    for (int id = 0; id < 2; ++id) {
+      visualization_msgs::msg::Marker obsolete_base_marker;
+      obsolete_base_marker.header.frame_id = "map";
+      obsolete_base_marker.header.stamp = now;
+      obsolete_base_marker.ns = "ik_links";
+      obsolete_base_marker.id = id;
+      obsolete_base_marker.action = visualization_msgs::msg::Marker::DELETE;
+      marker_array.markers.push_back(obsolete_base_marker);
+    }
 
-    // 1. 各リンクの描画
-    // TransformChainから得た座標は既にフィールド座標（robot_posオフセット加算済み）になっています
-    for (int i = 1; i < 5; ++i) {
+    // TransformChain positions are already expressed in the field frame.
+    for (int i = 2; i < 5; ++i) {
       visualization_msgs::msg::Marker marker;
       marker.header.frame_id = "map";
       marker.header.stamp = now;
@@ -89,14 +94,14 @@ private:
       marker.scale.y = 0.04; 
       marker.scale.z = 0.04; 
       marker.color.a = 1.0;
-      marker.color.r = (i == 0) ? 1.0 : 0.0;
-      marker.color.g = (i == 1) ? 1.0 : 0.0;
-      marker.color.b = (i >= 2) ? 1.0 : 0.0;
+      marker.color.r = 0.0;
+      marker.color.g = 0.0;
+      marker.color.b = 1.0;
 
       marker_array.markers.push_back(marker);
     }
 
-    // 2. 目標位置の描画
+    // Draw the requested target pose.
     visualization_msgs::msg::Marker target_marker;
     target_marker.header.frame_id = "map";
     target_marker.header.stamp = now;
