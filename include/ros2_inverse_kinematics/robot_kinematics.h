@@ -8,12 +8,9 @@
 //#include <Eigen>
 #include "posrot_vector.h"
 
-
 #define PI 3.14159265
 
-const float robot_pos[6] = {675, -130, 228, 0, 0, 0};
-
-
+const float robot_pos[6] = {675, -190, 0, 0, 0, 0};
 
 class robot_kinematics {
     /*
@@ -26,59 +23,20 @@ class robot_kinematics {
      * Joints and links are numbered from the base (0,1,2)
      * Origin of Joint0 is set toward positive field Y axle
      * Origins of Joint1 and 2 are set toward positive field Z axle
-     *
-     *  o_____________y
-     *  |
-     *  |
-     *  |
-     * R|
-     *  |
-     *  |
-     *  |
-     *  |_____________
-     *  x
-     *
-     *
-     *       /\
-     *      /  \
-     *     /    \ l1
-     * l0 /      \
-     *   /        \  l2
-     *  /          \_____
-     *                |
-     *                |l3
-     *
      */
 private:
-
-    float link_len[4];//mm
-    //float joint_angle_now[4];
-    //float joint_angle_trg[4]
+    float link_len[5];//mm
     float joint_angle_lim[4][2];//rad, {inf, sup}
 
-
-    //float r_posrot_trg[6];
-    //float r_posrot_now[6];
-
-
-    //float posrot_trg[6];
-    //float posrot_now[6];
-    /* posrot_vec posrot_trg;
-     * posrot_vec posrot_now;
-     */
     void convert_field2robot(float*, float*);
-
 
 public:
     robot_kinematics();
+    // Public joint-angle order: [theta1, theta2, theta3, theta4] in radians.
+    // theta2 and theta3 are absolute link angles referenced to the field frame.
     void inverse_kinematics(float*, float*);
     void forward_kinematics(float*, float*);
-
-
-
-
-
+    void get_joint_positions(float *joint_angle, float positions[6][3]);
 };
-
 
 #endif //CATCHROBO2023_ROBOT_KINEMATICS_H

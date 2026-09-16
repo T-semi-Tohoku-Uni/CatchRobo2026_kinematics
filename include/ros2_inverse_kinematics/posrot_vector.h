@@ -20,11 +20,12 @@
      */
 
 struct posrot_vec{
+    // position [mm]
     float x;
     float y;
     float z;
 
-    //euler angle;
+    //euler angle [rad];
     float phi;
     float thi;
     float psi;
